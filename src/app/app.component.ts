@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, HostListener } from '@angular/core';
 import * as echarts from 'echarts';
 import { InvoiceModel } from '../models/invoice-model';
 import { InvoiceApiProvider } from '../providers/invoice-api/invoice-api';
@@ -8,12 +8,19 @@ import { InvoiceApiProvider } from '../providers/invoice-api/invoice-api';
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.css']
 })
+
 export class AppComponent implements OnInit {
-  constructor(public InvoiceApiProvider: InvoiceApiProvider) {
+
+  filteredInvoice: Array<InvoiceModel>;
+  invoiceList: Array<InvoiceModel>;
+
+  constructor(private invoiceApiProvider: InvoiceApiProvider) {
+    this.filteredInvoice = [];
+    this.invoiceList = [];
   }
 
   ngOnInit() {
-    var invoiceList: Array<InvoiceModel> = [];
+
     var dates: Array<String> = [];
     var values: Array<number> = [];
     var numbers: Array<number> = [];
@@ -83,13 +90,28 @@ export class AppComponent implements OnInit {
       ]
     };
 
-    this.InvoiceApiProvider.getInvoices().then((data: Array<InvoiceModel>) => {
-      invoiceList = data;
-      console.log("Invoices number: " + invoiceList.length);
+    chart.on('click', function (params) {
+      console.log(params);
+      console.log("Date - " + params.name + " be tapped.");
+
+      var old_event: Event = params.event.event;
+      old_event.stopPropagation();
+
+      var event = new CustomEvent(
+        'dateTappedEvent',
+        { detail: { 'dateTapped': params.name } }
+      );
+      document.dispatchEvent(event);
+
+    });
+
+    this.invoiceApiProvider.getInvoices().then((data: Array<InvoiceModel>) => {
+      this.invoiceList = data;
+      console.log("Invoices number: " + this.invoiceList.length);
 
       //face values and numbers be grouped by date
       var result = [];
-      invoiceList.reduce(function (res, value) {
+      this.invoiceList.reduce(function (res, value) {
         if (!res[value.maturityDate]) {
           res[value.maturityDate] = {
             qty: 0,
@@ -110,9 +132,24 @@ export class AppComponent implements OnInit {
         numbers.push(item.qty);
       });
 
-      console.log("There are " + dates.length + " dates and " + invoiceList.length + " invoices to be shown.");
+      console.log("There are " + dates.length + " dates and " + this.invoiceList.length + " invoices to be shown.");
 
       chart.setOption(option);
     });
   }
+
+  @HostListener("document:dateTappedEvent", ["$event", '$event.detail.dateTapped'])
+  onClick(event, dateTapped) {
+    console.log(event);
+    this.filteredInvoice = this.invoiceList.filter(function (row) {
+      if (row.maturityDate === dateTapped) {
+        return true
+      } else {
+        return false;
+      }
+    });
+
+    console.log(this.filteredInvoice.length + " invoice be selected.");
+  }
+
 }
